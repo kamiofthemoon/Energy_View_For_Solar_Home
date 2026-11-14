@@ -1,6 +1,11 @@
 [theme]
-base = "dark"
-primaryColor = "#F5B700"
+base = "light"
+primaryColor = "#22A96B"
+backgroundColor = "#FBF8F2"
+secondaryBackgroundColor = "#EEF6F0"
+textColor = "#24323F"
+baseRadius = "large"
+borderColor = "#E6E1D6"
 
 [server]
 runOnSave = true

@@ -1,9 +1,12 @@
-"""Inbox-ul de notificari al clientului (simulat in prototip).
+"""The customer's notification inbox (simulated in the prototype).
 
-Reguli din design: putine si doar cand merita (prag minim in lei), rezolvabile
-dintr-o apasare, iar "Nu-mi mai propune" chiar e tinut minte. Notificarile se
-genereaza din profilul orar real + profilul din chestionar.
+Design rules: only a few and only when worth it (a minimum saving in lei),
+each one solved with a single tap, and "Don't suggest this again" is actually
+remembered. Notifications are built from the real hourly profile plus the
+questionnaire profile.
 """
+
+import html
 
 import pandas as pd
 import streamlit as st
@@ -11,11 +14,11 @@ import streamlit as st
 from components.wizard import APPLIANCES
 from config import PRICE_BUY_LEI_KWH, PRICE_SELL_LEI_KWH, SOLAR_WINDOW
 
-MIN_SAVING_LEI = 2.0  # sub pragul asta nu deranjam omul
+MIN_SAVING_LEI = 2.0  # below this threshold we don't bother the customer
 
 
 def build_notifications(hourly: pd.DataFrame, profile: dict) -> list[dict]:
-    """Construieste notificarile din date, nu dintr-o lista fixa."""
+    """Builds the notifications from the data, not from a fixed list."""
     notifs = []
     solar = f"{SOLAR_WINDOW[0]}:00-{SOLAR_WINDOW[1]}:00"
     peak_hour = int(hourly.loc[hourly["avg_power_kw"].idxmax(), "hour"])
@@ -23,38 +26,38 @@ def build_notifications(hourly: pd.DataFrame, profile: dict) -> list[dict]:
     diff = PRICE_BUY_LEI_KWH - PRICE_SELL_LEI_KWH
 
     if "ev" in profile.get("appliances", []):
-        away = profile.get("ev_home_noon") == "Rar"
+        away = profile.get("ev_home_noon") == "Rarely"
         if away:
             notifs.append({
                 "id": "ev_partial",
-                "title": "Incarca masina la noapte doar cat iti trebuie",
-                "body": "Masina nu e acasa la pranz, deci la noapte incarc-o doar pana la ~60%, "
-                        "cat ajunge pentru drumurile de maine. Restul il iei in weekend, din soare.",
+                "title": "Charge the car tonight only as much as you need",
+                "body": "The car is not home at midday, so tonight charge it only to ~60%, "
+                        "enough for tomorrow's trips. Top up the rest at the weekend, from the sun.",
                 "saving": round(5 * diff, 1),
             })
         else:
             notifs.append({
                 "id": "ev_solar",
-                "title": f"Muta masina la incarcat intre {solar}",
-                "body": "In fereastra asta panourile produc din plin si energia te costa cel mai putin. "
-                        "O incarcare de ~10 kWh mutata din noapte la pranz se simte direct in factura.",
+                "title": f"Charge the car between {solar}",
+                "body": "In this window your panels produce the most and energy costs you the least. "
+                        "Moving a ~10 kWh charge from the night to midday shows up straight on your bill.",
                 "saving": round(10 * diff, 1),
             })
     for a in ("washer", "dishwasher", "boiler", "dryer"):
-        if a in profile.get("appliances", []) and profile.get("usage", {}).get(a) in ("Seara", "Noaptea", None):
+        if a in profile.get("appliances", []) and profile.get("usage", {}).get(a) in ("Evening", "Night", None):
             notifs.append({
                 "id": f"shift_{a}",
-                "title": f"{APPLIANCES[a]}: porneste-o la pranz",
-                "body": f"Acum ruleaza de obicei spre seara, cand consumul casei e deja la varf "
-                        f"(in jur de ora {peak_hour}:00). Intre {solar} ar merge pe energia panourilor.",
+                "title": f"{APPLIANCES[a]}: run it at midday",
+                "body": f"It usually runs in the evening, when your home is already at its peak "
+                        f"(around {peak_hour}:00). Between {solar} it would run on your panels' energy.",
                 "saving": round(1.5 * diff, 1),
             })
     if night and night > 0.3:
         notifs.append({
             "id": "baseload",
-            "title": "Ceva consuma si cand dormi",
-            "body": f"Intre 02:00 si 05:00 casa trage in medie {night:.2f} kW. "
-                    "Verifica ce ramane pornit peste noapte (boiler, echipamente in standby).",
+            "title": "Something keeps running while you sleep",
+            "body": f"Between 02:00 and 05:00 your home draws {night:.2f} kW on average. "
+                    "Check what stays on overnight (water heater, devices on standby).",
             "saving": round(night * 6 * PRICE_BUY_LEI_KWH, 1),
         })
 
@@ -69,19 +72,21 @@ def notification_inbox(notifs: list[dict]) -> None:
     pending = [n for n in notifs if n["id"] not in accepted]
 
     if not pending:
-        st.success("Nimic nou. Te anuntam doar cand chiar ai ceva de castigat.")
+        st.success("Nothing new. We only get in touch when you really have something to gain.")
     for n in pending:
         with st.container(border=True):
-            st.markdown(f"**{n['title']}**")
-            st.write(n["body"])
-            st.caption(f"Economie estimata: ~{n['saving']:.0f} lei/zi in zilele in care o aplici")
+            st.markdown(
+                f'<div class="ev-rec-title">{html.escape(n["title"])}</div>'
+                f'<div class="ev-rec-body">{html.escape(n["body"])}</div>'
+                f'<span class="ev-pill">~{n["saving"]:.0f} lei saved on each day you do it</span>',
+                unsafe_allow_html=True)
             c1, c2, c3 = st.columns(3)
-            if c1.button("Accepta", key=f"acc_{n['id']}", type="primary", width="stretch"):
+            if c1.button("Accept", key=f"acc_{n['id']}", type="primary", width="stretch"):
                 accepted[n["id"]] = n
                 st.rerun()
-            if c2.button("Nu azi", key=f"later_{n['id']}", width="stretch"):
-                st.toast("Bine, revenim alta data.")
-            if c3.button("Nu-mi mai propune", key=f"dis_{n['id']}", width="stretch"):
+            if c2.button("Not today", key=f"later_{n['id']}", width="stretch"):
+                st.toast("Fine, we'll come back to it another time.")
+            if c3.button("Don't suggest again", key=f"dis_{n['id']}", width="stretch"):
                 dismissed.add(n["id"])
                 st.rerun()
 
@@ -90,8 +95,10 @@ def accepted_plan() -> None:
     accepted = st.session_state.get("notif_accepted", {})
     if not accepted:
         return
-    st.subheader("Planul tau")
+    st.subheader("Your plan")
     total = sum(n["saving"] for n in accepted.values())
-    st.caption(f"Economie estimata daca le respecti: ~{total * 20:.0f} lei/luna")
-    for n in accepted.values():
-        st.markdown(f"- {n['title']}")
+    items = "".join(f"<li>{html.escape(n['title'])}</li>" for n in accepted.values())
+    st.markdown(
+        f'<div class="ev-plan"><div class="ev-kpi-sub">Estimated savings if you stick to it</div>'
+        f'<div class="ev-plan-big">~{total * 20:.0f} lei/month</div><ul>{items}</ul></div>',
+        unsafe_allow_html=True)

@@ -1,12 +1,12 @@
-"""Singurul loc din frontend care stie de unde vin datele.
+"""The only place in the frontend that knows where the data comes from.
 
-Ordinea de decizie, la fiecare apel:
-1. USE_MOCK=true -> date simulate;
-2. backend-ul nu raspunde la /health -> date simulate;
-3. backend-ul raspunde dar nu are date (baza goala / 404) -> date simulate;
-4. altfel -> datele reale de la /api/v1.
+Decision order, on every call:
+1. USE_MOCK=true -> simulated data;
+2. the backend does not answer /health -> simulated data;
+3. the backend answers but has no data (empty database / 404) -> simulated data;
+4. otherwise -> the real data from /api/v1.
 
-Paginile nu fac niciodata request-uri direct, apeleaza doar functiile de aici.
+Pages never make requests directly, they only call the functions here.
 """
 
 import pandas as pd
@@ -46,7 +46,7 @@ def _raw_sites() -> list[dict]:
 
 
 def data_source() -> str:
-    """'api' sau 'mock' - folosit si de banner, si de pagini daca au nevoie."""
+    """'api' or 'mock' - used by the banner, and by pages if they need it."""
     if not _backend_alive():
         return "mock"
     try:
@@ -57,14 +57,14 @@ def data_source() -> str:
 
 def api_status_banner() -> None:
     if ml_source.available() and not USE_MOCK:
-        return  # paginile folosesc pipeline-ul ML, nu e nimic de semnalat
+        return  # the pages use the ML pipeline, nothing to report
     if USE_MOCK:
-        st.info("Date simulate (USE_MOCK=true).")
+        st.info("Simulated data (USE_MOCK=true).")
     elif not _backend_alive():
-        st.warning(f"Backend-ul nu raspunde la {API_URL} - merg pe date simulate.")
+        st.warning(f"The backend is not answering at {API_URL} - using simulated data.")
     elif data_source() == "mock":
-        st.warning("Backend-ul merge, dar baza lui e goala - date simulate. "
-                   "Ruleaza `python tools/seed_db.py` in folderul backend/.")
+        st.warning("The backend is running but its database is empty - using simulated data. "
+                   "Run `python ../frontend/tools/seed_db.py` from the backend/ folder.")
 
 
 def get_sites() -> pd.DataFrame:
@@ -140,7 +140,7 @@ def get_ai_context(site_id: str) -> dict:
 
 
 def get_ai_recommendations(site_id: str) -> list[str] | None:
-    """Recomandarile serviciului AI (backend -> :8001). None daca nu e disponibil."""
+    """Recommendations from the AI service (backend -> :8001). None if it is unavailable."""
     if not _backend_alive():
         return None
     try:

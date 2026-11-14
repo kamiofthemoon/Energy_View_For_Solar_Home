@@ -1,7 +1,7 @@
-"""Chestionarul de intrare (max 5 pasi, totul pe apasari, orice se poate sari).
+"""Onboarding questionnaire (max 5 steps, everything is a tap, anything can be skipped).
 
-Raspunsurile stau in st.session_state["profil"]. Dupa ultimul pas se arata
-imediat o prima estimare, ca utilizatorul sa vada la ce au folosit intrebarile.
+Answers live in st.session_state["profile"]. Right after the last step a first
+estimate is shown, so the user sees what the questions were for.
 """
 
 import streamlit as st
@@ -9,49 +9,49 @@ import streamlit as st
 from config import PRICE_BUY_LEI_KWH, PRICE_SELL_LEI_KWH
 
 APPLIANCES = {
-    "ev": "Masina electrica",
-    "heatpump": "Pompa de caldura / AC",
-    "boiler": "Boiler electric",
-    "washer": "Masina de spalat rufe",
-    "dishwasher": "Masina de spalat vase",
-    "dryer": "Uscator",
-    "oven": "Plita / cuptor electric",
+    "ev": "Electric car",
+    "heatpump": "Heat pump / AC",
+    "boiler": "Electric water heater",
+    "washer": "Washing machine",
+    "dishwasher": "Dishwasher",
+    "dryer": "Tumble dryer",
+    "oven": "Electric hob / oven",
 }
 
-# Doar pentru consumatorii care chiar se pot muta in timp are sens intrebarea de interval
+# The time-of-use question only makes sense for loads that can actually be moved
 SHIFTABLE = ["ev", "boiler", "washer", "dishwasher", "dryer"]
 
-INTERVALS = ["Dimineata", "La pranz", "Seara", "Noaptea", "Variabil"]
-SCHEDULE = ["De obicei acasa in timpul zilei", "Plecat(a) in timpul zilei", "Program variabil"]
+INTERVALS = ["Morning", "Midday", "Evening", "Night", "It varies"]
+SCHEDULE = ["Usually home during the day", "Away during the day", "Irregular schedule"]
 ENGAGEMENT = [
-    "Doar un rezumat lunar",
-    "Sfaturi saptamanale",
-    "Notificari la momentul potrivit",
-    "Automat, cu dispozitive conectate",
+    "Just a monthly summary",
+    "Weekly tips",
+    "Notifications at the right moment",
+    "Automatic, with connected devices",
 ]
 
 TOTAL_STEPS = 5
 
 
 def _profile() -> dict:
-    return st.session_state.setdefault("profil", {"step": 1})
+    return st.session_state.setdefault("profile", {"step": 1})
 
 
 def wizard_done() -> bool:
-    return st.session_state.get("profil", {}).get("done", False)
+    return st.session_state.get("profile", {}).get("done", False)
 
 
 def reset_wizard() -> None:
-    st.session_state["profil"] = {"step": 1}
+    st.session_state["profile"] = {"step": 1}
 
 
 def _nav(back: bool = True) -> None:
     p = _profile()
     left, right = st.columns(2)
-    if back and p["step"] > 1 and left.button("Inapoi", width="stretch"):
+    if back and p["step"] > 1 and left.button("Back", width="stretch"):
         p["step"] -= 1
         st.rerun()
-    label = "Continua" if p["step"] < TOTAL_STEPS else "Gata"
+    label = "Continue" if p["step"] < TOTAL_STEPS else "Done"
     if right.button(label, type="primary", width="stretch"):
         if p["step"] < TOTAL_STEPS:
             p["step"] += 1
@@ -62,82 +62,82 @@ def _nav(back: bool = True) -> None:
 
 def run_wizard() -> None:
     p = _profile()
-    st.progress(p["step"] / TOTAL_STEPS, text=f"Pasul {p['step']} din {TOTAL_STEPS}")
+    st.progress(p["step"] / TOTAL_STEPS, text=f"Step {p['step']} of {TOTAL_STEPS}")
 
     if p["step"] == 1:
-        st.subheader("Ce ai instalat?")
-        st.caption("Ca sa stim ce energie produci si ce putem optimiza. "
-                   "Datele tehnice le stie deja PPC, tu doar confirmi.")
-        p["equipment"] = st.pills("Alege tot ce ai:",
-                                  ["Panouri solare", "Baterie", "Masina electrica",
-                                   "Statie de incarcare (wallbox)", "Pompa de caldura",
-                                   "Boiler electric", "Contor inteligent", "Prize smart"],
+        st.subheader("What do you have installed?")
+        st.caption("So we know what energy you produce and what we can optimise. "
+                   "PPC already has the technical details, you just confirm.")
+        p["equipment"] = st.pills("Pick everything you have:",
+                                  ["Solar panels", "Battery", "Electric car",
+                                   "Charging station (wallbox)", "Heat pump",
+                                   "Electric water heater", "Smart meter", "Smart plugs"],
                                   selection_mode="multi", default=p.get("equipment"))
 
     elif p["step"] == 2:
-        st.subheader("Care sunt consumatorii mari din casa?")
-        st.caption("Ca sa-ti spunem cand e cel mai ieftin sa-i folosesti.")
+        st.subheader("What are the big consumers in your home?")
+        st.caption("So we can tell you when they are cheapest to run.")
         labels = list(APPLIANCES.values())
         default = [APPLIANCES[k] for k in p.get("appliances", []) if k in APPLIANCES]
-        chosen = st.pills("Alege tot ce se aplica:", labels,
+        chosen = st.pills("Pick everything that applies:", labels,
                           selection_mode="multi", default=default or None)
         p["appliances"] = [k for k, v in APPLIANCES.items() if v in (chosen or [])]
 
     elif p["step"] == 3:
         shiftable = [a for a in p.get("appliances", []) if a in SHIFTABLE]
-        st.subheader("Cand le folosesti de obicei?")
-        st.caption("Aproximativ e suficient. Poti sari peste orice.")
+        st.subheader("When do you usually use them?")
+        st.caption("A rough answer is enough. You can skip anything.")
         if not shiftable:
-            st.write("Nu ai ales consumatori care se pot programa. Treci mai departe.")
+            st.write("You did not pick any appliances that can be scheduled. Just continue.")
         usage = p.setdefault("usage", {})
         for a in shiftable:
             usage[a] = st.segmented_control(APPLIANCES[a], INTERVALS, default=usage.get(a), key=f"use_{a}")
         if "ev" in shiftable:
             st.divider()
-            p["ev_km"] = st.select_slider("Cam cati km conduci pe zi?",
-                                          ["sub 20", "20-50", "50-100", "peste 100", "Nu stiu"],
+            p["ev_km"] = st.select_slider("Roughly how many km do you drive a day?",
+                                          ["under 20", "20-50", "50-100", "over 100", "Not sure"],
                                           value=p.get("ev_km", "20-50"))
-            p["ev_home_noon"] = st.segmented_control("Masina e acasa la pranz?",
-                                                     ["De obicei da", "Doar in weekend", "Rar"],
+            p["ev_home_noon"] = st.segmented_control("Is the car at home around midday?",
+                                                     ["Usually yes", "Only at weekends", "Rarely"],
                                                      default=p.get("ev_home_noon"))
 
     elif p["step"] == 4:
-        st.subheader("Cum arata o zi obisnuita pentru tine?")
-        st.caption("Ca sa nu-ti propunem lucruri cand nu esti acasa.")
-        p["schedule"] = st.segmented_control("Programul tau:", SCHEDULE, default=p.get("schedule"))
+        st.subheader("What does a typical day look like for you?")
+        st.caption("So we don't suggest things for when you are not home.")
+        p["schedule"] = st.segmented_control("Your schedule:", SCHEDULE, default=p.get("schedule"))
 
     elif p["step"] == 5:
-        st.subheader("Cat de implicat(a) vrei sa fii?")
-        st.caption("Poti schimba oricand, din setari.")
-        p["engagement"] = st.radio("Alege nivelul:", ENGAGEMENT,
+        st.subheader("How involved do you want to be?")
+        st.caption("You can change this any time in the settings.")
+        p["engagement"] = st.radio("Choose a level:", ENGAGEMENT,
                                    index=ENGAGEMENT.index(p["engagement"]) if p.get("engagement") in ENGAGEMENT else 2)
         st.divider()
-        st.caption("Separat de nivelul de implicare: la ce date ne dai acces. "
-                   "Aplicatia merge si fara ele, doar ca estimarile sunt mai putin precise.")
-        p["data_meter"] = st.toggle("Curba de consum de la contorul inteligent",
+        st.caption("Separate from how involved you are: which data you share with us. "
+                   "The app works without it, the estimates are just less precise.")
+        p["data_meter"] = st.toggle("Load curve from the smart meter",
                                     value=p.get("data_meter", True))
-        p["data_devices"] = st.toggle("Dispozitive conectate (prize smart, incarcator)",
+        p["data_devices"] = st.toggle("Connected devices (smart plugs, charger)",
                                       value=p.get("data_devices", False))
 
     _nav()
 
 
 def first_estimate() -> None:
-    """Primul rezultat, aratat imediat dupa chestionar."""
-    p = st.session_state.get("profil", {})
+    """The first result, shown right after the questionnaire."""
+    p = st.session_state.get("profile", {})
     saving = 0.0
     parts = []
     if "ev" in p.get("appliances", []):
-        # ~10 kWh/zi incarcare mutata din noapte in fereastra solara, 20 de zile pe luna
+        # ~10 kWh/day of charging moved from the night into the solar window, 20 days a month
         ev_saving = 10 * 20 * (PRICE_BUY_LEI_KWH - PRICE_SELL_LEI_KWH)
         saving += ev_saving
-        parts.append(f"incarcarea masinii in orele cu soare (~{ev_saving:.0f} lei/luna)")
+        parts.append(f"charging the car in the sunny hours (~{ev_saving:.0f} lei/month)")
     for a in ("boiler", "washer", "dishwasher", "dryer"):
         if a in p.get("appliances", []):
             saving += 15
-            parts.append(APPLIANCES[a].lower() + " mutat(a) la pranz (~15 lei/luna)")
+            parts.append(APPLIANCES[a].lower() + " moved to midday (~15 lei/month)")
     if not parts:
-        st.info("Profil salvat. Pe masura ce strangem date despre consum, apar si recomandarile.")
+        st.info("Profile saved. Recommendations will appear as we collect data about your consumption.")
         return
-    st.success(f"Pe baza profilului tau, poti economisi aproximativ **{saving:.0f} lei/luna**: "
-               + "; ".join(parts) + ". Estimare orientativa, se rafineaza din datele reale.")
+    st.success(f"Based on your profile, you could save about **{saving:.0f} lei/month**: "
+               + "; ".join(parts) + ". A rough estimate, refined as real data comes in.")

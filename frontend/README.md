@@ -1,20 +1,20 @@
 # Frontend - One Energy View
 
-Interfata pentru challenge-ul PPC "One energy view for solar homes", in Streamlit.
+Streamlit interface for the PPC challenge "One energy view for solar homes".
 
-Trei pagini:
+Three pages:
 
-- **Clientul (app.py):** chestionar scurt de intrare, starea de acum (solar, casa,
-  baterie, retea), recomandari cu "Accepta / Nu azi / Nu-mi mai propune", planul
-  de economii si planul bateriei pe a doua zi.
-- **Analiza consum (pages/1_Analiza_consum.py):** curba la 15 min, productia
-  asteptata vs. reala, profilul orar si energia pe zile - de aici se vede de ce
-  primeste clientul sfaturile.
-- **Monitorizare instalatii (pages/2_Monitorizare_instalatii.py):** pagina
-  echipei de operare si mentenanta: alertele ordonate dupa cat costa (lei),
-  actiunea recomandata si graficul asteptat vs. real per instalatie.
+- **Customer (app.py):** a short onboarding questionnaire, the current state (solar,
+  home, battery, grid), recommendations with "Accept / Not today / Don't suggest
+  again", the savings plan and tomorrow's battery plan.
+- **Consumption analysis (pages/1_Consumption_analysis.py):** the 15-minute curve,
+  expected vs. actual production, the hourly profile and energy per day - this is
+  where you see why the customer gets the tips they get.
+- **Installation monitoring (pages/2_Installation_monitoring.py):** the page for the
+  operations and maintenance team: alerts sorted by what they cost (lei), the
+  recommended action and the expected vs. actual chart per installation.
 
-## Rulare
+## Running it
 
 ```
 cd frontend
@@ -23,58 +23,68 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
-## De unde vin datele
+## Where the data comes from
 
-Frontend-ul isi alege singur sursa, in ordinea asta:
+The frontend picks its source on its own, in this order:
 
-1. **Pipeline-ul ML** - daca exista `../ml_pipeline/out/` (generat cu
-   `cd ml_pipeline && python run_demo.py`). E sursa preferata: are productie,
-   consum, baterie, retea, productia asteptata din vreme, alerte in lei si
-   recomandarile personalizate din `customer.json`.
-2. **Backend-ul FastAPI** - daca raspunde la `http://localhost:8000/health` si
-   are date. Pornire:
+1. **The ML pipeline** - if `../ml_pipeline/out/` exists (generated with
+   `cd ml_pipeline && python run_demo.py`). This is the preferred source: it has
+   production, consumption, battery, grid, weather-expected production, alerts in
+   lei and the personalised recommendations from `customer.json`.
+2. **The FastAPI backend** - if it answers at `http://localhost:8000/health` and
+   has data. To start it:
 
    ```
    cd backend
    pip install -r requirements.txt
-   python ../frontend/tools/seed_db.py   # o singura data: umple baza din xlsx
+   python ../frontend/tools/seed_db.py   # once: fills the database from the xlsx
    uvicorn app.main:app --reload --port 8000
    ```
 
-3. **Date simulate** - daca niciuna dintre sursele de sus nu e disponibila.
-   Un banner spune cand se intampla asta. Demo-ul merge in orice conditii.
+3. **Simulated data** - if neither source above is available. A banner says when
+   this happens, so the demo works no matter what.
 
-Variabile optionale: `API_URL` (alt host/port pentru backend), `ML_OUT` (alta
-cale catre out/), `USE_MOCK=true` (forteaza simularea).
+Optional variables: `API_URL` (another host/port for the backend), `ML_OUT`
+(another path to out/), `USE_MOCK=true` (forces simulated data).
 
-## Structura
+## Prices
+
+Every savings figure uses the tariff from `ml_pipeline/ml/tariffs.py`
+(`RETAIL_LEI_KWH` and `FEED_IN_LEI_KWH`), so the questionnaire, the
+recommendations and the ML results agree. If `ml_pipeline` is missing,
+`config.py` falls back to the same values (1.30 and 0.30 lei/kWh).
+
+## Look and feel
+
+The theme lives in `components/theme.py` (fonts, cards, chart template) and the
+colours in `config.py` (`COLORS` for the charts, `UI` for the interface).
+Change a colour there and every page follows.
+
+## Structure
 
 ```
 frontend/
-  app.py                          ecranul clientului + chestionarul
+  app.py                            customer screen + questionnaire
   pages/
-    1_Analiza_consum.py           graficele de consum si productie
-    2_Monitorizare_instalatii.py  pagina echipei de mentenanta
+    1_Consumption_analysis.py       consumption and production charts
+    2_Installation_monitoring.py    the maintenance team's page
   components/
-    wizard.py                     chestionarul de intrare (5 pasi)
-    notifications.py              cardurile de recomandari
-    charts.py                     graficele (plotly)
-    kpi_cards.py                  cardurile cu cifre
+    theme.py                        shared look: page setup, hero, KPI cards
+    wizard.py                       onboarding questionnaire (5 steps)
+    notifications.py                recommendation cards
+    charts.py                       charts (plotly)
+    kpi_cards.py                    number cards
   services/
-    ml_source.py                  citeste ml_pipeline/out/ (sursa preferata)
-    api_client.py                 backend-ul FastAPI, cu fallback pe mock
-    mock_data.py                  date simulate in formatul API-ului
-  tools/seed_db.py                umple baza backend-ului din xlsx-ul PPC
-  config.py                       URL API, fereastra solara, preturi, culori
+    ml_source.py                    reads ml_pipeline/out/ (preferred source)
+    api_client.py                   the FastAPI backend, with a mock fallback
+    mock_data.py                    simulated data in the API format
+  tools/seed_db.py                  fills the backend database from the PPC xlsx
+  config.py                         API URL, solar window, prices, colours
 ```
 
-## De discutat in echipa
+## To discuss as a team
 
-- Textele din `customer.json` si `alerts.csv` (pipeline-ul ML) sunt in engleza;
-  interfata e in romana. De ales o limba inainte de demo.
-- Site-urile din ML (S01-S08, simulate) si cele din backend (SITE-01/02, din
-  seed) sunt liste diferite; cand ambele surse exista, frontend-ul le arata pe
-  cele din ML. Ideal, backend-ul ar servi si rezultatele ML, ca sa fie o
-  singura lista.
-- Preturile din `config.py` sunt orientative; cele reale sunt in
-  `ml_pipeline/ml/tariffs.py` la colegul de ML - de aliniat.
+- The ML sites (S01-S08, simulated) and the backend sites (SITE-01/02, from the
+  seed) are different lists; when both sources exist, the frontend shows the ML
+  ones. Ideally the backend would also serve the ML results, so there is a single
+  list.

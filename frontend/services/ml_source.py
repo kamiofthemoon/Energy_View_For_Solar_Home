@@ -1,8 +1,8 @@
-"""Citeste rezultatele pipeline-ului ML (ml_pipeline/out/*.csv), daca exista.
+"""Reads the ML pipeline results (ml_pipeline/out/*.csv), if they exist.
 
-E sursa cea mai buna de date: are productie + consum + baterie + retea,
-productia asteptata din vreme, alerte cu pierderea in lei si recomandari
-personalizate (customer.json). Se genereaza cu:
+This is the best data source: production + consumption + battery + grid,
+weather-expected production, alerts with the loss in lei and personalised
+recommendations (customer.json). Generate them with:
 
     cd ml_pipeline && python run_demo.py
 """
@@ -55,7 +55,7 @@ def get_timeseries(site_id: str, days: int = 3) -> pd.DataFrame:
     df = df[df["site_id"] == site_id]
     t0 = df["timestamp"].max() - pd.Timedelta(days=days)
     df = df[df["timestamp"] >= t0].copy()
-    # coloane compatibile cu paginile care stiu doar de consum
+    # columns compatible with the pages that only know about consumption
     df["consumption_kw"] = df["load_kw"]
     df["energy_kwh"] = df["load_kw"] * 0.25
     return df
@@ -91,13 +91,13 @@ def get_customer(site_id: str) -> dict:
 
 
 def nudges_as_notifications(site_id: str) -> list[dict]:
-    """Recomandarile ML, in formatul cardurilor din inbox."""
+    """The ML recommendations, in the inbox card format."""
     info = get_customer(site_id)
     cards = []
     for i, n in enumerate(info.get("nudges", [])):
         cards.append({
             "id": f"ml_nudge_{site_id}_{i}",
-            "title": "Obicei detectat din consum",
+            "title": "A habit spotted in your consumption",
             "body": n["text"],
             "saving": float(n.get("saving_lei_per_run", 0)),
         })
